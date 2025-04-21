@@ -113,7 +113,7 @@ public class HospitalManagementSystem {
         // Database connection parameters - modify these to match your MySQL setup
         private static final String DB_URL = "jdbc:mysql://localhost:3306/hospital_management";
         private static final String DB_USER = "root";
-        private static final String DB_PASSWORD = "Bristi23@04";
+        private static final String DB_PASSWORD = "PASSWORD";
         
         private DatabaseConfig() {
             // Private constructor for singleton pattern
@@ -295,6 +295,95 @@ public class HospitalManagementSystem {
         
         public String getNotes() { return notes; }
         public void setNotes(String notes) { this.notes = notes; }
+    }
+    
+    /**
+     * Disease model class
+     */
+    static class Disease {
+        private int diseaseId;
+        private String name;
+        private String description;
+        private String symptoms;
+        private String treatment;
+        
+        // Default constructor
+        public Disease() {
+        }
+        
+        // Parameterized constructor
+        public Disease(String name, String description, String symptoms, String treatment) {
+            this.name = name;
+            this.description = description;
+            this.symptoms = symptoms;
+            this.treatment = treatment;
+        }
+        
+        // Getters and setters
+        public int getDiseaseId() { return diseaseId; }
+        public void setDiseaseId(int diseaseId) { this.diseaseId = diseaseId; }
+        
+        public String getName() { return name; }
+        public void setName(String name) { this.name = name; }
+        
+        public String getDescription() { return description; }
+        public void setDescription(String description) { this.description = description; }
+        
+        public String getSymptoms() { return symptoms; }
+        public void setSymptoms(String symptoms) { this.symptoms = symptoms; }
+        
+        public String getTreatment() { return treatment; }
+        public void setTreatment(String treatment) { this.treatment = treatment; }
+        
+        @Override
+        public String toString() {
+            return name;
+        }
+    }
+
+    /**
+     * PatientDisease model class - represents a disease diagnosed for a patient
+     */
+    static class PatientDisease {
+        private int patientDiseaseId;
+        private int patientId;
+        private int diseaseId;
+        private Date diagnosisDate;
+        private String notes;
+        private String status; // Active, Recovered, Chronic, etc.
+        
+        // Default constructor
+        public PatientDisease() {
+            this.diagnosisDate = new Date();
+        }
+        
+        // Parameterized constructor
+        public PatientDisease(int patientId, int diseaseId, String notes, String status) {
+            this.patientId = patientId;
+            this.diseaseId = diseaseId;
+            this.diagnosisDate = new Date();
+            this.notes = notes;
+            this.status = status;
+        }
+        
+        // Getters and setters
+        public int getPatientDiseaseId() { return patientDiseaseId; }
+        public void setPatientDiseaseId(int patientDiseaseId) { this.patientDiseaseId = patientDiseaseId; }
+        
+        public int getPatientId() { return patientId; }
+        public void setPatientId(int patientId) { this.patientId = patientId; }
+        
+        public int getDiseaseId() { return diseaseId; }
+        public void setDiseaseId(int diseaseId) { this.diseaseId = diseaseId; }
+        
+        public Date getDiagnosisDate() { return diagnosisDate; }
+        public void setDiagnosisDate(Date diagnosisDate) { this.diagnosisDate = diagnosisDate; }
+        
+        public String getNotes() { return notes; }
+        public void setNotes(String notes) { this.notes = notes; }
+        
+        public String getStatus() { return status; }
+        public void setStatus(String status) { this.status = status; }
     }
     
     //==========================================================================
@@ -554,6 +643,222 @@ public class HospitalManagementSystem {
         }
     }
     
+    /**
+     * Disease repository for database operations
+     */
+    static class DiseaseRepository {
+        private static final Logger LOGGER = Logger.getLogger(DiseaseRepository.class.getName());
+        private final DatabaseConfig dbConfig;
+        
+        public DiseaseRepository() {
+            this.dbConfig = DatabaseConfig.getInstance();
+        }
+        
+        /**
+         * Save a new disease to the database
+         */
+        public Disease save(Disease disease) throws SQLException {
+            String sql = "INSERT INTO diseases (name, description, symptoms, treatment) " +
+                    "VALUES (?, ?, ?, ?)";
+        
+            try (Connection conn = dbConfig.getConnection();
+                 PreparedStatement stmt = conn.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
+            
+                stmt.setString(1, disease.getName());
+                stmt.setString(2, disease.getDescription());
+                stmt.setString(3, disease.getSymptoms());
+                stmt.setString(4, disease.getTreatment());
+            
+                int affectedRows = stmt.executeUpdate();
+            
+                if (affectedRows == 0) {
+                    throw new SQLException("Creating disease failed, no rows affected.");
+                }
+            
+                try (ResultSet generatedKeys = stmt.getGeneratedKeys()) {
+                    if (generatedKeys.next()) {
+                        disease.setDiseaseId(generatedKeys.getInt(1));
+                    } else {
+                        throw new SQLException("Creating disease failed, no ID obtained.");
+                    }
+                }
+            
+                return disease;
+            } catch (SQLException e) {
+                LOGGER.log(Level.SEVERE, "Error saving disease", e);
+                throw e;
+            }
+        }
+    
+        /**
+         * Find all diseases
+         */
+        public List<Disease> findAll() throws SQLException {
+            String sql = "SELECT * FROM diseases ORDER BY name";
+            List<Disease> diseases = new ArrayList<>();
+        
+            try (Connection conn = dbConfig.getConnection();
+                 Statement stmt = conn.createStatement();
+                 ResultSet rs = stmt.executeQuery(sql)) {
+            
+                while (rs.next()) {
+                    Disease disease = new Disease();
+                    disease.setDiseaseId(rs.getInt("disease_id"));
+                    disease.setName(rs.getString("name"));
+                    disease.setDescription(rs.getString("description"));
+                    disease.setSymptoms(rs.getString("symptoms"));
+                    disease.setTreatment(rs.getString("treatment"));
+                    diseases.add(disease);
+                }
+            
+                return diseases;
+            } catch (SQLException e) {
+                LOGGER.log(Level.SEVERE, "Error finding all diseases", e);
+                throw e;
+            }
+        }
+    
+        /**
+         * Find a disease by ID
+         */
+        public Disease findById(int diseaseId) throws SQLException {
+            String sql = "SELECT * FROM diseases WHERE disease_id = ?";
+        
+            try (Connection conn = dbConfig.getConnection();
+                 PreparedStatement stmt = conn.prepareStatement(sql)) {
+            
+                stmt.setInt(1, diseaseId);
+            
+                try (ResultSet rs = stmt.executeQuery()) {
+                    if (rs.next()) {
+                        Disease disease = new Disease();
+                        disease.setDiseaseId(rs.getInt("disease_id"));
+                        disease.setName(rs.getString("name"));
+                        disease.setDescription(rs.getString("description"));
+                        disease.setSymptoms(rs.getString("symptoms"));
+                        disease.setTreatment(rs.getString("treatment"));
+                        return disease;
+                    } else {
+                        return null;
+                    }
+                }
+            } catch (SQLException e) {
+                LOGGER.log(Level.SEVERE, "Error finding disease by ID", e);
+                throw e;
+            }
+        }
+    }
+
+    /**
+     * PatientDisease repository for database operations
+     */
+    static class PatientDiseaseRepository {
+        private static final Logger LOGGER = Logger.getLogger(PatientDiseaseRepository.class.getName());
+        private final DatabaseConfig dbConfig;
+    
+        public PatientDiseaseRepository() {
+            this.dbConfig = DatabaseConfig.getInstance();
+        }
+    
+        /**
+         * Save a new patient disease to the database
+         */
+        public PatientDisease save(PatientDisease patientDisease) throws SQLException {
+            String sql = "INSERT INTO patient_diseases (patient_id, disease_id, diagnosis_date, notes, status) " +
+                    "VALUES (?, ?, ?, ?, ?)";
+        
+            try (Connection conn = dbConfig.getConnection();
+                 PreparedStatement stmt = conn.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
+            
+                stmt.setInt(1, patientDisease.getPatientId());
+                stmt.setInt(2, patientDisease.getDiseaseId());
+                stmt.setTimestamp(3, new Timestamp(patientDisease.getDiagnosisDate().getTime()));
+                stmt.setString(4, patientDisease.getNotes());
+                stmt.setString(5, patientDisease.getStatus());
+            
+                int affectedRows = stmt.executeUpdate();
+            
+                if (affectedRows == 0) {
+                    throw new SQLException("Creating patient disease failed, no rows affected.");
+                }
+            
+                try (ResultSet generatedKeys = stmt.getGeneratedKeys()) {
+                    if (generatedKeys.next()) {
+                        patientDisease.setPatientDiseaseId(generatedKeys.getInt(1));
+                    } else {
+                        throw new SQLException("Creating patient disease failed, no ID obtained.");
+                    }
+                }
+            
+                return patientDisease;
+            } catch (SQLException e) {
+                LOGGER.log(Level.SEVERE, "Error saving patient disease", e);
+                throw e;
+            }
+        }
+    
+        /**
+         * Find all diseases for a patient
+         */
+        public List<Map<String, Object>> findByPatientId(int patientId) throws SQLException {
+            String sql = "SELECT pd.*, d.name as disease_name, d.description, d.symptoms, d.treatment " +
+                    "FROM patient_diseases pd " +
+                    "JOIN diseases d ON pd.disease_id = d.disease_id " +
+                    "WHERE pd.patient_id = ? " +
+                    "ORDER BY pd.diagnosis_date DESC";
+        
+            List<Map<String, Object>> patientDiseases = new ArrayList<>();
+        
+            try (Connection conn = dbConfig.getConnection();
+                 PreparedStatement stmt = conn.prepareStatement(sql)) {
+            
+                stmt.setInt(1, patientId);
+            
+                try (ResultSet rs = stmt.executeQuery()) {
+                    while (rs.next()) {
+                        Map<String, Object> record = new HashMap<>();
+                        record.put("patientDiseaseId", rs.getInt("patient_disease_id"));
+                        record.put("patientId", rs.getInt("patient_id"));
+                        record.put("diseaseId", rs.getInt("disease_id"));
+                        record.put("diagnosisDate", rs.getTimestamp("diagnosis_date"));
+                        record.put("notes", rs.getString("notes"));
+                        record.put("status", rs.getString("status"));
+                        record.put("diseaseName", rs.getString("disease_name"));
+                        record.put("description", rs.getString("description"));
+                        record.put("symptoms", rs.getString("symptoms"));
+                        record.put("treatment", rs.getString("treatment"));
+                    
+                        patientDiseases.add(record);
+                    }
+                }
+            
+                return patientDiseases;
+            } catch (SQLException e) {
+                LOGGER.log(Level.SEVERE, "Error finding diseases for patient", e);
+                throw e;
+            }
+        }
+    
+        /**
+         * Delete a patient disease
+         */
+        public boolean delete(int patientDiseaseId) throws SQLException {
+            String sql = "DELETE FROM patient_diseases WHERE patient_disease_id = ?";
+        
+            try (Connection conn = dbConfig.getConnection();
+                 PreparedStatement stmt = conn.prepareStatement(sql)) {
+            
+                stmt.setInt(1, patientDiseaseId);
+            
+                int affectedRows = stmt.executeUpdate();
+                return affectedRows > 0;
+            } catch (SQLException e) {
+                LOGGER.log(Level.SEVERE, "Error deleting patient disease", e);
+                throw e;
+            }
+        }
+    }
+    
     //==========================================================================
     // SERVICES (BUSINESS LOGIC)
     //==========================================================================
@@ -808,6 +1113,80 @@ public class HospitalManagementSystem {
             return email.matches("[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}");
         }
     }
+
+    /**
+     * Disease service for disease-related business logic
+     */
+    static class DiseaseService {
+        private static final Logger LOGGER = Logger.getLogger(DiseaseService.class.getName());
+        private final DiseaseRepository diseaseRepository;
+        private final PatientDiseaseRepository patientDiseaseRepository;
+    
+        public DiseaseService() {
+            this.diseaseRepository = new DiseaseRepository();
+            this.patientDiseaseRepository = new PatientDiseaseRepository();
+        }
+    
+        /**
+         * Get all diseases
+         */
+        public List<Disease> getAllDiseases() throws Exception {
+            try {
+                return diseaseRepository.findAll();
+            } catch (SQLException e) {
+                LOGGER.log(Level.SEVERE, "Error getting all diseases", e);
+                throw new Exception("Failed to get diseases: " + e.getMessage(), e);
+            }
+        }
+    
+        /**
+         * Get a disease by ID
+         */
+        public Disease getDiseaseById(int diseaseId) throws Exception {
+            try {
+                return diseaseRepository.findById(diseaseId);
+            } catch (SQLException e) {
+                LOGGER.log(Level.SEVERE, "Error getting disease by ID", e);
+                throw new Exception("Failed to get disease: " + e.getMessage(), e);
+            }
+        }
+    
+        /**
+         * Add a disease to a patient
+         */
+        public PatientDisease addDiseaseToPatient(PatientDisease patientDisease) throws Exception {
+            try {
+                return patientDiseaseRepository.save(patientDisease);
+            } catch (SQLException e) {
+                LOGGER.log(Level.SEVERE, "Error adding disease to patient", e);
+                throw new Exception("Failed to add disease to patient: " + e.getMessage(), e);
+            }
+        }
+    
+        /**
+         * Get all diseases for a patient
+         */
+        public List<Map<String, Object>> getDiseasesForPatient(int patientId) throws Exception {
+            try {
+                return patientDiseaseRepository.findByPatientId(patientId);
+            } catch (SQLException e) {
+                LOGGER.log(Level.SEVERE, "Error getting diseases for patient", e);
+                throw new Exception("Failed to get diseases for patient: " + e.getMessage(), e);
+            }
+        }
+    
+        /**
+         * Remove a disease from a patient
+         */
+        public boolean removeDiseaseFromPatient(int patientDiseaseId) throws Exception {
+            try {
+                return patientDiseaseRepository.delete(patientDiseaseId);
+            } catch (SQLException e) {
+                LOGGER.log(Level.SEVERE, "Error removing disease from patient", e);
+                throw new Exception("Failed to remove disease from patient: " + e.getMessage(), e);
+            }
+        }
+    }
     
     //==========================================================================
     // UI COMPONENTS
@@ -846,15 +1225,23 @@ public class HospitalManagementSystem {
     }
     
     /**
-     * Custom button with dark theme styling
+     * Animated button with smooth transitions
      */
-    static class CustomButton extends JButton {
+    static class AnimatedButton extends JButton {
+        private float alpha = 0.7f;
+        private Color hoverColor;
+        private Color normalColor;
+        private Color pressedColor;
+        private Color currentColor;
         private boolean isHovered = false;
         private boolean isPressed = false;
         
-        public CustomButton(String text) {
+        private javax.swing.Timer fadeTimer;
+        private int targetAlpha;
+        
+        public AnimatedButton(String text) {
             super(text);
-            
+        
             // Set button properties
             setFocusPainted(false);
             setBorderPainted(false);
@@ -862,30 +1249,60 @@ public class HospitalManagementSystem {
             setOpaque(false);
             setForeground(ColorScheme.BUTTON_TEXT);
             setCursor(new Cursor(Cursor.HAND_CURSOR));
-            
+        
+            // Set colors
+            normalColor = ColorScheme.BUTTON_BACKGROUND;
+            hoverColor = ColorScheme.BUTTON_BACKGROUND.brighter();
+            pressedColor = ColorScheme.BUTTON_SELECTED;
+            currentColor = normalColor;
+        
+            // Create fade timer
+            fadeTimer = new javax.swing.Timer(20, e -> {
+                if (targetAlpha > alpha) {
+                    alpha += 0.05f;
+                    if (alpha >= targetAlpha) {
+                        alpha = targetAlpha;
+                        fadeTimer.stop();
+                    }
+                } else {
+                    alpha -= 0.05f;
+                    if (alpha <= targetAlpha) {
+                        alpha = targetAlpha;
+                        fadeTimer.stop();
+                    }
+                }
+                repaint();
+            });
+        
             // Add mouse listeners for hover and press effects
             addMouseListener(new MouseAdapter() {
                 @Override
                 public void mouseEntered(MouseEvent e) {
                     isHovered = true;
-                    repaint();
+                    currentColor = hoverColor;
+                    targetAlpha = 1;
+                    fadeTimer.start();
                 }
-                
+            
                 @Override
                 public void mouseExited(MouseEvent e) {
                     isHovered = false;
-                    repaint();
+                    currentColor = normalColor;
+                    targetAlpha = (int) 0.7f;
+                    fadeTimer.start();
                 }
-                
+            
                 @Override
                 public void mousePressed(MouseEvent e) {
                     isPressed = true;
+                    currentColor = pressedColor;
                     repaint();
                 }
-                
+            
                 @Override
                 public void mouseReleased(MouseEvent e) {
                     isPressed = false;
+                    currentColor = isHovered ? hoverColor : normalColor;
                     repaint();
                 }
             });
@@ -895,37 +1312,39 @@ public class HospitalManagementSystem {
         protected void paintComponent(Graphics g) {
             Graphics2D g2d = (Graphics2D) g.create();
             g2d.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-            
+        
             // Set button color based on state
             if (isPressed) {
-                g2d.setColor(ColorScheme.BUTTON_SELECTED);
-            } else if (isHovered) {
-                g2d.setColor(ColorScheme.BUTTON_BACKGROUND.brighter());
+                g2d.setColor(pressedColor);
             } else {
-                g2d.setColor(ColorScheme.BUTTON_BACKGROUND);
+                g2d.setColor(currentColor);
             }
-            
+        
+            // Apply alpha transparency
+            g2d.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, alpha));
+        
             // Draw rounded rectangle background
             g2d.fillRoundRect(0, 0, getWidth(), getHeight(), 10, 10);
-            
+        
             // Draw focus border if button has focus
             if (hasFocus()) {
                 g2d.setColor(ColorScheme.BUTTON_FOCUS);
                 g2d.setStroke(new BasicStroke(2));
                 g2d.drawRoundRect(1, 1, getWidth() - 3, getHeight() - 3, 10, 10);
             }
-            
+        
             // Draw text
             FontMetrics fm = g2d.getFontMetrics();
             Rectangle textRect = new Rectangle(0, 0, getWidth(), getHeight());
             String text = getText();
-            
+        
             int x = (textRect.width - fm.stringWidth(text)) / 2;
             int y = (textRect.height - fm.getHeight()) / 2 + fm.getAscent();
-            
+        
             g2d.setColor(ColorScheme.BUTTON_TEXT);
+            g2d.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, 1.0f));
             g2d.drawString(text, x, y);
-            
+        
             g2d.dispose();
         }
         
@@ -933,6 +1352,58 @@ public class HospitalManagementSystem {
         public Dimension getPreferredSize() {
             Dimension size = super.getPreferredSize();
             return new Dimension(size.width + 20, size.height + 10);
+        }
+    }
+
+    /**
+     * Navigation panel with animated buttons
+     */
+    static class NavigationPanel extends JPanel {
+        private final MainFrame mainFrame;
+        private final Map<String, AnimatedButton> buttons = new HashMap<>();
+    
+        public NavigationPanel(MainFrame mainFrame) {
+            this.mainFrame = mainFrame;
+        
+            // Set layout
+            setLayout(new FlowLayout(FlowLayout.LEFT, 10, 5));
+            setBackground(ColorScheme.BACKGROUND);
+            setBorder(BorderFactory.createEmptyBorder(5, 5, 5, 5));
+        
+            // Create navigation buttons
+            createButton("Dashboard", e -> mainFrame.showDashboard());
+            createButton("Patients", e -> mainFrame.showPatientPanel());
+            createButton("Admin", e -> mainFrame.showAdminPanel());
+            createButton("Logout", e -> mainFrame.logout());
+        }
+    
+        /**
+         * Create a navigation button
+         */
+        private void createButton(String text, ActionListener action) {
+            AnimatedButton button = new AnimatedButton(text);
+            button.addActionListener(action);
+            buttons.put(text, button);
+            add(button);
+        }
+    
+        /**
+         * Highlight the active button
+         */
+        public void setActiveButton(String buttonText) {
+            for (Map.Entry<String, AnimatedButton> entry : buttons.entrySet()) {
+                AnimatedButton button = entry.getValue();
+                if (entry.getKey().equals(buttonText)) {
+                    button.setForeground(ColorScheme.PRIMARY);
+                    button.setBorder(BorderFactory.createCompoundBorder(
+                        BorderFactory.createMatteBorder(0, 0, 2, 0, ColorScheme.PRIMARY),
+                        BorderFactory.createEmptyBorder(0, 0, 2, 0)
+                    ));
+                } else {
+                    button.setForeground(ColorScheme.BUTTON_TEXT);
+                    button.setBorder(BorderFactory.createEmptyBorder(0, 0, 4, 0));
+                }
+            }
         }
     }
     
@@ -1055,6 +1526,8 @@ public class HospitalManagementSystem {
         private final DashboardPanel dashboardPanel;
         private final PatientPanel patientPanel;
         private final AdminPanel adminPanel;
+        private final PatientDiseasePanel patientDiseasePanel;
+        private final NavigationPanel navigationPanel;
         
         private final AuthenticationService authService;
         
@@ -1067,6 +1540,9 @@ public class HospitalManagementSystem {
             
             // Get authentication service
             authService = AuthenticationService.getInstance();
+
+            // Initialize navigation panel
+            navigationPanel = new NavigationPanel(this);
             
             // Set up the main frame
             setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
@@ -1083,12 +1559,14 @@ public class HospitalManagementSystem {
             dashboardPanel = new DashboardPanel(this);
             patientPanel = new PatientPanel(this);
             adminPanel = new AdminPanel(this);
+            patientDiseasePanel = new PatientDiseasePanel(this);
             
             // Add panels to content panel
             contentPanel.add(loginPanel, "LOGIN");
             contentPanel.add(dashboardPanel, "DASHBOARD");
             contentPanel.add(patientPanel, "PATIENTS");
             contentPanel.add(adminPanel, "ADMIN");
+            contentPanel.add(patientDiseasePanel, "PATIENT_DISEASES");
             
             // Add content panel to frame
             add(contentPanel);
@@ -1182,6 +1660,7 @@ public class HospitalManagementSystem {
          * Show the dashboard panel after successful login
          */
         public void showDashboard() {
+            navigationPanel.setActiveButton("Dashboard");
             cardLayout.show(contentPanel, "DASHBOARD");
         }
         
@@ -1189,6 +1668,7 @@ public class HospitalManagementSystem {
          * Show the patient management panel
          */
         public void showPatientPanel() {
+            navigationPanel.setActiveButton("Patients");
             patientPanel.refreshData();
             cardLayout.show(contentPanel, "PATIENTS");
         }
@@ -1198,6 +1678,7 @@ public class HospitalManagementSystem {
          */
         public void showAdminPanel() {
             if (authService.isAdmin()) {
+                navigationPanel.setActiveButton("Admin");
                 adminPanel.refreshData();
                 cardLayout.show(contentPanel, "ADMIN");
             } else {
@@ -1205,6 +1686,16 @@ public class HospitalManagementSystem {
                     "You do not have permission to access the admin panel.",
                     "Access Denied", JOptionPane.WARNING_MESSAGE);
             }
+        }
+
+        /**
+         * Show patient disease panel
+         */
+        public void showPatientDiseasePanel(Patient patient) {
+            navigationPanel.setActiveButton("Patients");
+            patientDiseasePanel.setPatient(patient);
+            patientDiseasePanel.startFadeInAnimation();
+            cardLayout.show(contentPanel, "PATIENT_DISEASES");
         }
         
         /**
@@ -1266,7 +1757,7 @@ public class HospitalManagementSystem {
             usernameField = new JTextField(20);
             passwordField = new JPasswordField(20);
 
-            loginButton = new CustomButton("Login");
+            loginButton = new AnimatedButton("Login");
             loginButton.addActionListener(e -> attemptLogin());
 
             statusLabel = new JLabel(" ");
@@ -1404,13 +1895,13 @@ public class HospitalManagementSystem {
             JPanel navPanel = new JPanel(new FlowLayout(FlowLayout.LEFT));
             navPanel.setBackground(ColorScheme.BACKGROUND);
             
-            CustomButton patientsButton = new CustomButton("Patients");
+            AnimatedButton patientsButton = new AnimatedButton("Patients");
             patientsButton.addActionListener(e -> mainFrame.showPatientPanel());
             
-            CustomButton adminButton = new CustomButton("Admin");
+            AnimatedButton adminButton = new AnimatedButton("Admin");
             adminButton.addActionListener(e -> mainFrame.showAdminPanel());
             
-            CustomButton logoutButton = new CustomButton("Logout");
+            AnimatedButton logoutButton = new AnimatedButton("Logout");
             logoutButton.addActionListener(e -> mainFrame.logout());
             
             navPanel.add(patientsButton);
@@ -1475,7 +1966,7 @@ public class HospitalManagementSystem {
             descLabel.setForeground(new Color(200, 200, 200));
             descLabel.setBorder(BorderFactory.createEmptyBorder(5, 15, 15, 15));
             
-            CustomButton openButton = new CustomButton("Open");
+            AnimatedButton openButton = new AnimatedButton("Open");
             openButton.addActionListener(action);
             
             JPanel buttonPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT));
@@ -1525,13 +2016,13 @@ public class HospitalManagementSystem {
             JPanel navPanel = new JPanel(new FlowLayout(FlowLayout.LEFT));
             navPanel.setBackground(ColorScheme.BACKGROUND);
             
-            CustomButton dashboardButton = new CustomButton("Dashboard");
+            AnimatedButton dashboardButton = new AnimatedButton("Dashboard");
             dashboardButton.addActionListener(e -> mainFrame.showDashboard());
             
-            CustomButton adminButton = new CustomButton("Admin");
+            AnimatedButton adminButton = new AnimatedButton("Admin");
             adminButton.addActionListener(e -> mainFrame.showAdminPanel());
             
-            CustomButton logoutButton = new CustomButton("Logout");
+            AnimatedButton logoutButton = new AnimatedButton("Logout");
             logoutButton.addActionListener(e -> mainFrame.logout());
             
             navPanel.add(dashboardButton);
@@ -1547,7 +2038,7 @@ public class HospitalManagementSystem {
             
             searchField = new JTextField(20);
             
-            CustomButton searchButton = new CustomButton("Search");
+            AnimatedButton searchButton = new AnimatedButton("Search");
             searchButton.addActionListener(e -> searchPatients());
             
             searchPanel.add(searchLabel);
@@ -1573,10 +2064,10 @@ public class HospitalManagementSystem {
             buttonPanel.setBackground(ColorScheme.BACKGROUND);
             buttonPanel.setBorder(BorderFactory.createEmptyBorder(0, 10, 10, 10));
             
-            CustomButton addButton = new CustomButton("Add Patient");
+            AnimatedButton addButton = new AnimatedButton("Add Patient");
             addButton.addActionListener(e -> showAddPatientDialog());
             
-            CustomButton editButton = new CustomButton("Edit Patient");
+            AnimatedButton editButton = new AnimatedButton("Edit Patient");
             editButton.addActionListener(e -> {
                 int selectedRow = patientTable.getSelectedRow();
                 if (selectedRow >= 0) {
@@ -1589,7 +2080,7 @@ public class HospitalManagementSystem {
                 }
             });
             
-            CustomButton deleteButton = new CustomButton("Delete Patient");
+            AnimatedButton deleteButton = new AnimatedButton("Delete Patient");
             deleteButton.addActionListener(e -> {
                 int selectedRow = patientTable.getSelectedRow();
                 if (selectedRow >= 0) {
@@ -1601,6 +2092,28 @@ public class HospitalManagementSystem {
                         "No Selection", JOptionPane.WARNING_MESSAGE);
                 }
             });
+
+            AnimatedButton viewDiseasesButton = new AnimatedButton("View Diseases");
+            viewDiseasesButton.addActionListener(e -> {
+                int selectedRow = patientTable.getSelectedRow();
+                if (selectedRow >= 0) {
+                    int patientId = (int) tableModel.getValueAt(selectedRow, 0);
+                    try {
+                        Patient patient = patientService.getPatientById(patientId);
+                        mainFrame.showPatientDiseasePanel(patient);
+                    } catch (Exception ex) {
+                        JOptionPane.showMessageDialog(this, 
+                            "Error loading patient: " + ex.getMessage(), 
+                            "Error", JOptionPane.ERROR_MESSAGE);
+                    }
+                } else {
+                    JOptionPane.showMessageDialog(this, 
+                        "Please select a patient to view diseases", 
+                        "No Selection", JOptionPane.WARNING_MESSAGE);
+                }
+            });
+
+            buttonPanel.add(viewDiseasesButton);
             
             buttonPanel.add(addButton);
             buttonPanel.add(editButton);
@@ -1818,7 +2331,7 @@ public class HospitalManagementSystem {
             JPanel buttonPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT));
             buttonPanel.setBackground(ColorScheme.BACKGROUND);
             
-            CustomButton saveButton = new CustomButton("Save");
+            AnimatedButton saveButton = new AnimatedButton("Save");
             saveButton.addActionListener(new ActionListener() {
                 @Override
                 public void actionPerformed(ActionEvent e) {
@@ -1876,7 +2389,7 @@ public class HospitalManagementSystem {
                 }
             });
             
-            CustomButton cancelButton = new CustomButton("Cancel");
+            AnimatedButton cancelButton = new AnimatedButton("Cancel");
             cancelButton.addActionListener(e -> dialog.dispose());
             
             buttonPanel.add(saveButton);
@@ -2011,7 +2524,7 @@ public class HospitalManagementSystem {
                 JPanel buttonPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT));
                 buttonPanel.setBackground(ColorScheme.BACKGROUND);
                 
-                CustomButton saveButton = new CustomButton("Save");
+                AnimatedButton saveButton = new AnimatedButton("Save");
                 saveButton.addActionListener(new ActionListener() {
                     @Override
                     public void actionPerformed(ActionEvent e) {
@@ -2074,7 +2587,7 @@ public class HospitalManagementSystem {
                     }
                 });
                 
-                CustomButton cancelButton = new CustomButton("Cancel");
+                AnimatedButton cancelButton = new AnimatedButton("Cancel");
                 cancelButton.addActionListener(e -> dialog.dispose());
                 
                 buttonPanel.add(saveButton);
@@ -2128,6 +2641,322 @@ public class HospitalManagementSystem {
             }
         }
     }
+
+    /**
+     * Panel for managing patient diseases
+     */
+    static class PatientDiseasePanel extends AnimatedPanel {
+        private final MainFrame mainFrame;
+        private final DiseaseService diseaseService;
+        private final PatientService patientService;
+    
+        private Patient currentPatient;
+        private JTable diseaseTable;
+        private DefaultTableModel tableModel;
+    
+        public PatientDiseasePanel(MainFrame mainFrame) {
+            this.mainFrame = mainFrame;
+            this.diseaseService = new DiseaseService();
+            this.patientService = new PatientService();
+        
+            initializeUI();
+        }
+    
+        /**
+         * Initialize the UI components
+         */
+        private void initializeUI() {
+            setLayout(new BorderLayout());
+            setBackground(ColorScheme.BACKGROUND);
+        
+            // Create title panel
+            JPanel titlePanel = new JPanel(new BorderLayout());
+            titlePanel.setBackground(ColorScheme.BACKGROUND);
+            titlePanel.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
+        
+            JLabel titleLabel = new JLabel("Patient Diseases");
+            titleLabel.setFont(new Font("Arial", Font.BOLD, 20));
+            titleLabel.setForeground(ColorScheme.TEXT);
+        
+            JLabel patientLabel = new JLabel();
+            patientLabel.setFont(new Font("Arial", Font.PLAIN, 16));
+            patientLabel.setForeground(ColorScheme.TEXT);
+        
+            titlePanel.add(titleLabel, BorderLayout.WEST);
+            titlePanel.add(patientLabel, BorderLayout.EAST);
+        
+            // Create button panel
+            JPanel buttonPanel = new JPanel(new FlowLayout(FlowLayout.LEFT));
+            buttonPanel.setBackground(ColorScheme.BACKGROUND);
+            buttonPanel.setBorder(BorderFactory.createEmptyBorder(0, 10, 10, 10));
+        
+            AnimatedButton addButton = new AnimatedButton("Add Disease");
+            addButton.addActionListener(e -> showAddDiseaseDialog());
+        
+            AnimatedButton removeButton = new AnimatedButton("Remove Disease");
+            removeButton.addActionListener(e -> {
+                int selectedRow = diseaseTable.getSelectedRow();
+                if (selectedRow >= 0) {
+                    int patientDiseaseId = (int) tableModel.getValueAt(selectedRow, 0);
+                    removeDiseaseFromPatient(patientDiseaseId);
+                } else {
+                    JOptionPane.showMessageDialog(this, 
+                        "Please select a disease to remove", 
+                        "No Selection", JOptionPane.WARNING_MESSAGE);
+                }
+            });
+        
+            AnimatedButton backButton = new AnimatedButton("Back to Patients");
+            backButton.addActionListener(e -> mainFrame.showPatientPanel());
+        
+            buttonPanel.add(addButton);
+            buttonPanel.add(removeButton);
+            buttonPanel.add(backButton);
+        
+            // Create table panel
+            JPanel tablePanel = new JPanel(new BorderLayout());
+            tablePanel.setBackground(ColorScheme.BACKGROUND);
+            tablePanel.setBorder(BorderFactory.createEmptyBorder(0, 10, 10, 10));
+        
+            // Create table model with columns
+            String[] columns = {"ID", "Disease", "Diagnosis Date", "Status", "Notes"};
+            tableModel = new DefaultTableModel(columns, 0) {
+                @Override
+                public boolean isCellEditable(int row, int column) {
+                    return false; // Make table non-editable
+                }
+            
+                @Override
+                public Class<?> getColumnClass(int columnIndex) {
+                    if (columnIndex == 0) {
+                        return Integer.class; // ID column is integer
+                    }
+                    return String.class;
+                }
+            };
+        
+            // Create table
+            diseaseTable = new CustomTable(tableModel);
+            diseaseTable.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
+        
+            // Add table to scroll pane
+            JScrollPane scrollPane = new JScrollPane(diseaseTable);
+            scrollPane.getViewport().setBackground(ColorScheme.BACKGROUND);
+        
+            tablePanel.add(scrollPane, BorderLayout.CENTER);
+        
+            // Add components to main panel
+            add(titlePanel, BorderLayout.NORTH);
+            add(buttonPanel, BorderLayout.NORTH);
+            add(tablePanel, BorderLayout.CENTER);
+        }
+    
+        /**
+         * Set the current patient and load their diseases
+         */
+        public void setPatient(Patient patient) {
+            this.currentPatient = patient;
+        
+            // Update patient label
+            JLabel patientLabel = (JLabel) ((JPanel) getComponent(0)).getComponent(1);
+            patientLabel.setText("Patient: " + patient.getFirstName() + " " + patient.getLastName());
+        
+            // Load patient diseases
+            loadPatientDiseases();
+        }
+    
+        /**
+         * Load diseases for the current patient
+         */
+        private void loadPatientDiseases() {
+            try {
+                // Clear existing data
+                tableModel.setRowCount(0);
+            
+                // Get diseases for patient
+                List<Map<String, Object>> patientDiseases = diseaseService.getDiseasesForPatient(currentPatient.getPatientId());
+            
+                // Add diseases to table
+                SimpleDateFormat dateFormat = new SimpleDateFormat("yyyy-MM-dd");
+                for (Map<String, Object> record : patientDiseases) {
+                    Object[] row = {
+                        record.get("patientDiseaseId"),
+                        record.get("diseaseName"),
+                        dateFormat.format((Date) record.get("diagnosisDate")),
+                        record.get("status"),
+                        record.get("notes")
+                    };
+                    tableModel.addRow(row);
+                }
+            } catch (Exception e) {
+                JOptionPane.showMessageDialog(this, 
+                    "Error loading patient diseases: " + e.getMessage(), 
+                    "Error", JOptionPane.ERROR_MESSAGE);
+            }
+        }
+    
+        /**
+         * Show dialog to add a disease to the patient
+         */
+        private void showAddDiseaseDialog() {
+            try {
+                // Get all diseases
+                List<Disease> diseases = diseaseService.getAllDiseases();
+            
+                if (diseases.isEmpty()) {
+                    JOptionPane.showMessageDialog(this, 
+                        "No diseases available. Please add diseases first.", 
+                        "No Diseases", JOptionPane.WARNING_MESSAGE);
+                    return;
+                }
+            
+                // Create dialog
+                JDialog dialog = new JDialog(mainFrame, "Add Disease to Patient", true);
+                dialog.setSize(500, 400);
+                dialog.setLocationRelativeTo(mainFrame);
+                dialog.setLayout(new BorderLayout());
+            
+                // Create form panel
+                JPanel formPanel = new JPanel(new GridBagLayout());
+                formPanel.setBackground(ColorScheme.BACKGROUND);
+                formPanel.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
+            
+                GridBagConstraints gbc = new GridBagConstraints();
+                gbc.insets = new Insets(5, 5, 5, 5);
+                gbc.anchor = GridBagConstraints.WEST;
+            
+                // Disease
+                gbc.gridx = 0;
+                gbc.gridy = 0;
+                JLabel diseaseLabel = new JLabel("Disease:");
+                diseaseLabel.setForeground(ColorScheme.TEXT);
+                formPanel.add(diseaseLabel, gbc);
+            
+                gbc.gridx = 1;
+                JComboBox<Disease> diseaseComboBox = new JComboBox<>(diseases.toArray(new Disease[0]));
+                formPanel.add(diseaseComboBox, gbc);
+            
+                // Status
+                gbc.gridx = 0;
+                gbc.gridy = 1;
+                JLabel statusLabel = new JLabel("Status:");
+                statusLabel.setForeground(ColorScheme.TEXT);
+                formPanel.add(statusLabel, gbc);
+            
+                gbc.gridx = 1;
+                String[] statuses = {"Active", "Recovered", "Chronic", "In Treatment"};
+                JComboBox<String> statusComboBox = new JComboBox<>(statuses);
+                formPanel.add(statusComboBox, gbc);
+            
+                // Notes
+                gbc.gridx = 0;
+                gbc.gridy = 2;
+                JLabel notesLabel = new JLabel("Notes:");
+                notesLabel.setForeground(ColorScheme.TEXT);
+                formPanel.add(notesLabel, gbc);
+            
+                gbc.gridx = 1;
+                JTextArea notesArea = new JTextArea(5, 20);
+                JScrollPane notesScrollPane = new JScrollPane(notesArea);
+                formPanel.add(notesScrollPane, gbc);
+            
+                // Button panel
+                JPanel buttonPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT));
+                buttonPanel.setBackground(ColorScheme.BACKGROUND);
+            
+                AnimatedButton saveButton = new AnimatedButton("Save");
+                saveButton.addActionListener(new ActionListener() {
+                    @Override
+                    public void actionPerformed(ActionEvent e) {
+                        try {
+                            // Get selected disease
+                            Disease selectedDisease = (Disease) diseaseComboBox.getSelectedItem();
+                            String status = (String) statusComboBox.getSelectedItem();
+                            String notes = notesArea.getText().trim();
+                        
+                            // Create patient disease
+                            PatientDisease patientDisease = new PatientDisease(
+                                currentPatient.getPatientId(),
+                                selectedDisease.getDiseaseId(),
+                                notes,
+                                status
+                            );
+                        
+                            // Save patient disease
+                            diseaseService.addDiseaseToPatient(patientDisease);
+                        
+                            // Close dialog
+                            dialog.dispose();
+                        
+                            // Refresh data
+                            loadPatientDiseases();
+                        
+                            // Show success message
+                            JOptionPane.showMessageDialog(mainFrame, 
+                                "Disease added to patient successfully", 
+                                "Success", JOptionPane.INFORMATION_MESSAGE);
+                        } catch (Exception ex) {
+                            JOptionPane.showMessageDialog(dialog, 
+                                "Error adding disease to patient: " + ex.getMessage(), 
+                                "Error", JOptionPane.ERROR_MESSAGE);
+                        }
+                    }
+                });
+            
+                AnimatedButton cancelButton = new AnimatedButton("Cancel");
+                cancelButton.addActionListener(e -> dialog.dispose());
+            
+                buttonPanel.add(saveButton);
+                buttonPanel.add(cancelButton);
+            
+                // Add panels to dialog
+                dialog.add(formPanel, BorderLayout.CENTER);
+                dialog.add(buttonPanel, BorderLayout.SOUTH);
+            
+                // Show dialog
+                dialog.setVisible(true);
+            } catch (Exception e) {
+                JOptionPane.showMessageDialog(this, 
+                    "Error loading diseases: " + e.getMessage(), 
+                    "Error", JOptionPane.ERROR_MESSAGE);
+            }
+        }
+    
+        /**
+         * Remove a disease from the patient
+         */
+        private void removeDiseaseFromPatient(int patientDiseaseId) {
+            try {
+                // Confirm deletion
+                int confirm = JOptionPane.showConfirmDialog(this, 
+                    "Are you sure you want to remove this disease from the patient?", 
+                    "Confirm Removal", JOptionPane.YES_NO_OPTION);
+            
+                if (confirm == JOptionPane.YES_OPTION) {
+                    // Remove disease
+                    boolean success = diseaseService.removeDiseaseFromPatient(patientDiseaseId);
+                
+                    if (success) {
+                        // Refresh data
+                        loadPatientDiseases();
+                    
+                        // Show success message
+                        JOptionPane.showMessageDialog(this, 
+                            "Disease removed from patient successfully", 
+                            "Success", JOptionPane.INFORMATION_MESSAGE);
+                    } else {
+                        JOptionPane.showMessageDialog(this, 
+                            "Failed to remove disease from patient", 
+                            "Error", JOptionPane.ERROR_MESSAGE);
+                    }
+                }
+            } catch (Exception e) {
+                JOptionPane.showMessageDialog(this, 
+                    "Error removing disease from patient: " + e.getMessage(), 
+                    "Error", JOptionPane.ERROR_MESSAGE);
+            }
+        }
+    }
     
     /**
      * Admin panel for system administration
@@ -2151,13 +2980,13 @@ public class HospitalManagementSystem {
             JPanel navPanel = new JPanel(new FlowLayout(FlowLayout.LEFT));
             navPanel.setBackground(ColorScheme.BACKGROUND);
             
-            CustomButton dashboardButton = new CustomButton("Dashboard");
+            AnimatedButton dashboardButton = new AnimatedButton("Dashboard");
             dashboardButton.addActionListener(e -> mainFrame.showDashboard());
             
-            CustomButton patientsButton = new CustomButton("Patients");
+            AnimatedButton patientsButton = new AnimatedButton("Patients");
             patientsButton.addActionListener(e -> mainFrame.showPatientPanel());
             
-            CustomButton logoutButton = new CustomButton("Logout");
+            AnimatedButton logoutButton = new AnimatedButton("Logout");
             logoutButton.addActionListener(e -> mainFrame.logout());
             
             navPanel.add(dashboardButton);

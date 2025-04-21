@@ -101,3 +101,25 @@ VALUES
 (2, 1, '2023-05-12', 'Migraine', 'Prescribed Sumatriptan as needed', 'Patient reports frequent headaches'),
 (3, 2, '2023-05-15', 'Lower back pain', 'Physical therapy recommended', 'MRI shows mild disc degeneration'),
 (4, 2, '2023-05-18', 'Anxiety disorder', 'Prescribed Sertraline 50mg daily', 'Patient reports increased stress at work');
+
+
+-- Create diseases table
+CREATE TABLE IF NOT EXISTS diseases (
+    disease_id INT AUTO_INCREMENT PRIMARY KEY,
+    name VARCHAR(100) NOT NULL,
+    description TEXT,
+    symptoms TEXT,
+    treatment TEXT
+);
+
+-- Create patient_diseases table
+CREATE TABLE IF NOT EXISTS patient_diseases (
+    patient_disease_id INT AUTO_INCREMENT PRIMARY KEY,
+    patient_id INT NOT NULL,
+    disease_id INT NOT NULL,
+    diagnosis_date DATETIME DEFAULT CURRENT_TIMESTAMP,
+    notes TEXT,
+    status VARCHAR(50),
+    FOREIGN KEY (patient_id) REFERENCES patients(patient_id) ON DELETE CASCADE,
+    FOREIGN KEY (disease_id) REFERENCES diseases(disease_id) ON DELETE CASCADE
+);
